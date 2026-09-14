@@ -1,0 +1,42 @@
+import express from 'express';
+import {
+  updateProfile,
+  updateLocation,
+  uploadDocuments,
+  updateBank,
+  getActiveFee,
+  createPaymentOrder,
+  verifyPayment,
+  submitOnboarding,
+  resubmitOnboarding
+} from '../../controllers/delivery/deliveryOnboardingController.js';
+import { protectDeliveryPartner } from '../../middleware/authMiddleware.js';
+import { upload } from '../../integrations/storage/r2UploadService.js';
+
+const router = express.Router();
+
+router.get('/fee', getActiveFee);
+
+// Protected Onboarding Routes
+router.use(protectDeliveryPartner);
+
+router.put('/profile', updateProfile);
+router.put('/location', updateLocation);
+
+router.post(
+  '/documents',
+  upload.fields([
+    { name: 'aadhaarFront', maxCount: 1 },
+    { name: 'aadhaarBack', maxCount: 1 },
+    { name: 'panImage', maxCount: 1 }
+  ]),
+  uploadDocuments
+);
+
+router.put('/bank', updateBank);
+router.post('/create-payment-order', createPaymentOrder);
+router.post('/verify-payment', verifyPayment);
+router.post('/submit', submitOnboarding);
+router.post('/resubmit', resubmitOnboarding);
+
+export default router;

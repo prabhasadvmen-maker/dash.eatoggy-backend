@@ -2,13 +2,13 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import Admin from '../../models/admin/Admin.js';
 import Restaurant from '../../models/restaurants/Restaurant.js';
-import { protect } from '../../middleware/authMiddleware.js';
+import { protectAdmin } from '../../middleware/authMiddleware.js';
 import { getPresignedDocumentUrls } from '../../integrations/storage/r2UploadService.js';
 
 const router = express.Router();
 
-// All admin routes require authentication
-router.use(protect);
+// All admin routes require admin authentication
+router.use(protectAdmin);
 
 // @route   GET /api/admins
 // @desc    Get all admins

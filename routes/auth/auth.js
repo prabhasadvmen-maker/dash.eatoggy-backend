@@ -36,7 +36,8 @@ router.post('/login', async (req, res) => {
     // Create payload
     const payload = {
       admin: {
-        id: admin.id
+        id: admin.id,
+        role: admin.role
       }
     };
 

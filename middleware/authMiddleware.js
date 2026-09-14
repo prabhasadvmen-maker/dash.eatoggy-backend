@@ -14,10 +14,85 @@ export const protect = (req, res, next) => {
     const secret = process.env.JWT_SECRET;
     if (!secret) return res.status(500).json({ message: 'Server configuration error' });
     const decoded = jwt.verify(token, secret);
-    
-    req.admin = decoded.admin;
+
+    if (decoded.admin) {
+      req.admin = decoded.admin;
+    }
+    if (decoded.restaurant) {
+      req.restaurant = decoded.restaurant;
+    }
+    if (decoded.user) {
+      req.user = decoded.user;
+      if (decoded.user.role === 'Customer') {
+        req.customer = decoded.user;
+      }
+    }
+    if (decoded.customer) {
+      req.customer = decoded.customer;
+      req.user = decoded.customer;
+    }
+
+    if (decoded.deliveryPartner) {
+      req.deliveryPartner = decoded.deliveryPartner;
+      req.user = decoded.deliveryPartner;
+    }
+    if (decoded.user && decoded.user.role === 'DeliveryPartner') {
+      req.deliveryPartner = decoded.user;
+    }
+
     next();
   } catch (err) {
     res.status(401).json({ message: 'Token is not valid' });
   }
 };
+
+export const protectAdmin = (req, res, next) => {
+  protect(req, res, () => {
+    if (!req.admin) {
+      return res.status(403).json({ message: 'Admin access denied' });
+    }
+    next();
+  });
+};
+
+import Admin from '../models/admin/Admin.js';
+
+export const protectSuperAdmin = (req, res, next) => {
+  protect(req, res, async () => {
+    if (!req.admin) {
+      return res.status(403).json({ message: 'SuperAdmin access denied' });
+    }
+    if (req.admin.role !== 'SuperAdmin') {
+      try {
+        const dbAdmin = await Admin.findById(req.admin.id);
+        if (!dbAdmin || dbAdmin.role !== 'SuperAdmin') {
+          return res.status(403).json({ message: 'SuperAdmin access denied' });
+        }
+        req.admin = dbAdmin;
+      } catch (err) {
+        return res.status(403).json({ message: 'SuperAdmin access denied' });
+      }
+    }
+    next();
+  });
+};
+
+export const protectCustomer = (req, res, next) => {
+  protect(req, res, () => {
+    if (!req.customer || req.customer.role !== 'Customer') {
+      return res.status(403).json({ message: 'Customer access denied' });
+    }
+    next();
+  });
+};
+
+export const protectDeliveryPartner = (req, res, next) => {
+  protect(req, res, () => {
+    const partner = req.deliveryPartner || req.user;
+    if (!partner || partner.role !== 'DeliveryPartner') {
+      return res.status(403).json({ message: 'Delivery Partner access denied' });
+    }
+    next();
+  });
+};
+
