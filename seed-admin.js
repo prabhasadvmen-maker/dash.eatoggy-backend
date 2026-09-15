@@ -10,13 +10,13 @@ async function seed() {
     await mongoose.connect(process.env.MONGODB_URI);
     const Admin = (await import('./models/admin/Admin.js')).default;
     
-    let admin = await Admin.findOne({ email: 'test_superadmin@eatoggy.com' });
+    let admin = await Admin.findOne({ email: 'superadmin@eatoggy.com' });
     if (!admin) {
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('Password@123', salt);
+      const hashedPassword = await bcrypt.hash('superadmin@000', salt);
       admin = await Admin.create({
-        name: 'Test Super Admin',
-        email: 'test_superadmin@eatoggy.com',
+        name: 'Super Admin',
+        email: 'superadmin@eatoggy.com',
         password: hashedPassword,
         role: 'SuperAdmin'
       });
