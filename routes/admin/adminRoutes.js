@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import Admin from '../../models/admin/Admin.js';
 import Restaurant from '../../models/restaurants/Restaurant.js';
+import Payment from '../../models/payments/Payment.js';
 import { protectAdmin } from '../../middleware/authMiddleware.js';
 import { getPresignedDocumentUrls } from '../../integrations/storage/r2UploadService.js';
 
@@ -168,6 +169,31 @@ router.get('/restaurants', async (req, res) => {
         if (rObj.documents) {
           rObj.documents = await getPresignedDocumentUrls(rObj.documents);
         }
+        
+        // Mask Bank Account Number
+        if (rObj.bankDetails && rObj.bankDetails.accountNumber) {
+          const accNum = rObj.bankDetails.accountNumber;
+          rObj.bankDetails.accountNumber = accNum.length > 4 ? `••••••••${accNum.slice(-4)}` : accNum;
+        }
+
+        // Attach Payment info
+        const payment = await Payment.findOne({
+          restaurant: r._id,
+          purpose: 'RESTAURANT_PARTNER_ONBOARDING'
+        }).sort({ createdAt: -1 });
+
+        if (payment) {
+          rObj.paymentData = {
+            amount: payment.amount,
+            currency: payment.currency,
+            status: payment.status,
+            purpose: payment.purpose,
+            razorpayOrderId: payment.razorpayOrderId,
+            razorpayPaymentId: payment.razorpayPaymentId,
+            timestamp: payment.createdAt
+          };
+        }
+
         return rObj;
       })
     );
@@ -186,6 +212,8 @@ router.put('/restaurants/:id/approve', async (req, res) => {
     if (!restaurant) return res.status(404).json({ message: 'Restaurant not found' });
     
     restaurant.status = 'APPROVED';
+    restaurant.onboardingStatus = 'APPROVED';
+    restaurant.currentStep = 'APPROVED';
     restaurant.rejectionReason = '';
     await restaurant.save();
     
@@ -207,6 +235,8 @@ router.put('/restaurants/:id/reject', async (req, res) => {
     if (!restaurant) return res.status(404).json({ message: 'Restaurant not found' });
     
     restaurant.status = 'REJECTED';
+    restaurant.onboardingStatus = 'REJECTED';
+    restaurant.currentStep = 'REJECTED';
     restaurant.rejectionReason = reason;
     await restaurant.save();
     

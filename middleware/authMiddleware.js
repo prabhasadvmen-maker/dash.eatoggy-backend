@@ -96,3 +96,13 @@ export const protectDeliveryPartner = (req, res, next) => {
   });
 };
 
+export const protectRestaurant = (req, res, next) => {
+  protect(req, res, () => {
+    const restaurant = req.restaurant || req.user;
+    if (!restaurant || (restaurant.role && restaurant.role !== 'Restaurant')) {
+      return res.status(403).json({ message: 'Restaurant access denied' });
+    }
+    next();
+  });
+};
+

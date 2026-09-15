@@ -2,18 +2,18 @@ import mongoose from 'mongoose';
 
 const RestaurantSchema = new mongoose.Schema({
   // Owner Details
-  ownerName: { type: String, required: true },
+  ownerName: { type: String },
   mobile: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  email: { type: String, sparse: true },
+  password: { type: String },
   
   // Restaurant Details
-  restaurantName: { type: String, required: true },
-  restaurantType: { type: String, required: true }, // e.g., Cafe, Cloud Kitchen, Fine Dining
+  restaurantName: { type: String },
+  restaurantType: { type: String }, // e.g., Cafe, Cloud Kitchen, Fine Dining
   cuisine: { type: String }, // e.g., North Indian, Chinese, Italian
-  fullAddress: { type: String, required: true },
-  city: { type: String, required: true },
-  pincode: { type: String, required: true },
+  fullAddress: { type: String },
+  city: { type: String },
+  pincode: { type: String },
   operatingHours: {
     open: { type: String },
     close: { type: String }
@@ -24,7 +24,10 @@ const RestaurantSchema = new mongoose.Schema({
     panCard: { type: String },
     businessRegistration: { type: String },
     foodLicense: { type: String },
+    gstCertificate: { type: String },
     idProof: { type: String },
+    aadhaarFront: { type: String },
+    aadhaarBack: { type: String },
     restaurantImage: { type: String },
     menu: { type: String },
     kitchenVideo: { type: String }
@@ -38,11 +41,21 @@ const RestaurantSchema = new mongoose.Schema({
     upiId: { type: String }
   },
 
-  // Flow State
+  // Flow State & Onboarding Progress
   status: {
     type: String,
     enum: ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'],
     default: 'PENDING'
+  },
+  onboardingStatus: {
+    type: String,
+    enum: ['DRAFT', 'ONBOARDING_IN_PROGRESS', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'],
+    default: 'DRAFT'
+  },
+  currentStep: {
+    type: String,
+    enum: ['WELCOME', 'BUSINESS_DETAILS', 'BUSINESS_DOCS', 'IDENTITY_BANK', 'REVIEW_PAYMENT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED'],
+    default: 'WELCOME'
   },
   rejectionReason: { type: String, default: '' },
   suspensionReason: { type: String, default: '' },

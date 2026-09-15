@@ -6,10 +6,14 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'DeliveryPartner'
     },
+    restaurant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Restaurant'
+    },
     purpose: {
       type: String,
       default: 'DELIVERY_PARTNER_ONBOARDING',
-      enum: ['DELIVERY_PARTNER_ONBOARDING', 'ORDER_PAYMENT']
+      enum: ['DELIVERY_PARTNER_ONBOARDING', 'RESTAURANT_PARTNER_ONBOARDING', 'ORDER_PAYMENT']
     },
     amount: {
       type: Number,

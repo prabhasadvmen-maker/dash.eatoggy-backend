@@ -7,6 +7,8 @@ import Restaurant from '../../models/restaurants/Restaurant.js';
 import { sendOTP, verifyOTP } from '../../integrations/otp/otpService.js';
 import { upload, uploadToR2 } from '../../integrations/storage/r2UploadService.js';
 
+import { protectRestaurant } from '../../middleware/authMiddleware.js';
+
 const router = express.Router();
 
 const getRazorpay = () => new Razorpay({
@@ -18,6 +20,9 @@ const getRazorpay = () => new Razorpay({
 // @desc    Send OTP to mobile
 router.post('/send-otp', async (req, res) => {
   const { mobile } = req.body;
+  if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+    return res.status(400).json({ success: false, message: 'Valid 10-digit Indian mobile number is required' });
+  }
   const result = await sendOTP(mobile);
   if (result.success) {
     res.json(result);
@@ -27,14 +32,125 @@ router.post('/send-otp', async (req, res) => {
 });
 
 // @route   POST /api/restaurant-auth/verify-otp
-// @desc    Verify OTP
+// @desc    Verify OTP for Restaurant Partner, provision/authenticate & issue JWT
 router.post('/verify-otp', async (req, res) => {
   const { mobile, otp } = req.body;
+
+  if (!mobile || !otp) {
+    return res.status(400).json({ success: false, message: 'Mobile number and OTP are required' });
+  }
+
   const result = verifyOTP(mobile, otp);
-  if (result.success) {
-    res.json(result);
-  } else {
-    res.status(400).json(result);
+  if (!result.success) {
+    return res.status(400).json({ success: false, message: result.message || 'Invalid or expired OTP' });
+  }
+
+  let restaurant;
+  try {
+    restaurant = await Restaurant.findOne({ mobile });
+    if (!restaurant) {
+      restaurant = await Restaurant.create({
+        mobile,
+        isPhoneVerified: true,
+        onboardingStatus: 'ONBOARDING_IN_PROGRESS',
+        currentStep: 'WELCOME',
+        status: 'PENDING'
+      });
+    } else {
+      restaurant.isPhoneVerified = true;
+      if (restaurant.onboardingStatus === 'DRAFT') {
+        restaurant.onboardingStatus = 'ONBOARDING_IN_PROGRESS';
+        restaurant.currentStep = restaurant.currentStep || 'WELCOME';
+      }
+      restaurant.lastLogin = new Date();
+      await restaurant.save();
+    }
+  } catch (err) {
+    if (err.code === 11000) {
+      restaurant = await Restaurant.findOne({ mobile });
+    } else {
+      console.error('Restaurant OTP verify DB error:', err);
+      return res.status(500).json({ success: false, message: 'Server error during restaurant authentication' });
+    }
+  }
+
+  if (!restaurant) {
+    return res.status(500).json({ success: false, message: 'Failed to authenticate restaurant account' });
+  }
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return res.status(500).json({ success: false, message: 'JWT_SECRET configuration missing' });
+
+  const payload = {
+    restaurant: { id: restaurant._id, role: 'Restaurant' },
+    user: { id: restaurant._id, role: 'Restaurant' }
+  };
+
+  const token = jwt.sign(payload, secret, { expiresIn: '7d' });
+
+  res.json({
+    success: true,
+    message: 'Mobile verified successfully',
+    token,
+    user: {
+      id: restaurant._id,
+      mobile: restaurant.mobile,
+      ownerName: restaurant.ownerName || null,
+      email: restaurant.email || null,
+      restaurantName: restaurant.restaurantName || null,
+      role: 'Restaurant',
+      isPhoneVerified: restaurant.isPhoneVerified,
+      status: restaurant.status,
+      onboardingStatus: restaurant.onboardingStatus || 'ONBOARDING_IN_PROGRESS',
+      currentStep: restaurant.currentStep || 'WELCOME',
+      rejectionReason: restaurant.rejectionReason || ''
+    }
+  });
+});
+
+// @route   GET /api/restaurant-auth/me
+// @desc    Get Current Authenticated Restaurant Profile & Onboarding State
+router.get('/me', protectRestaurant, async (req, res) => {
+  try {
+    const restaurantId = req.restaurant?.id || req.user?.id;
+    if (!restaurantId) {
+      return res.status(401).json({ message: 'Unauthorized access' });
+    }
+
+    const restaurant = await Restaurant.findById(restaurantId);
+    if (!restaurant) {
+      return res.status(404).json({ message: 'Restaurant profile not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Restaurant profile retrieved',
+      user: {
+        id: restaurant._id,
+        mobile: restaurant.mobile,
+        ownerName: restaurant.ownerName || null,
+        email: restaurant.email || null,
+        restaurantName: restaurant.restaurantName || null,
+        restaurantType: restaurant.restaurantType || null,
+        cuisine: restaurant.cuisine || null,
+        fullAddress: restaurant.fullAddress || null,
+        city: restaurant.city || null,
+        pincode: restaurant.pincode || null,
+        bankDetails: restaurant.bankDetails || null,
+        documents: restaurant.documents || null,
+        role: 'Restaurant',
+        isPhoneVerified: restaurant.isPhoneVerified,
+        status: restaurant.status,
+        onboardingStatus: restaurant.onboardingStatus || 'ONBOARDING_IN_PROGRESS',
+        currentStep: restaurant.currentStep || 'WELCOME',
+        rejectionReason: restaurant.rejectionReason || '',
+        createdAt: restaurant.createdAt,
+        updatedAt: restaurant.updatedAt
+      }
+    });
+  } catch (err) {
+    console.error('Error in /me:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -200,6 +316,16 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Validate password
+    if (!restaurant.password) {
+      return res.status(400).json({ message: 'Password authentication is disabled for this account. Please use Mobile + OTP authentication.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, restaurant.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
     // Check status flows
     if (restaurant.status === 'PENDING') {
       return res.status(403).json({ 
@@ -220,12 +346,6 @@ router.post('/login', async (req, res) => {
         status: 'SUSPENDED', 
         message: `Account Suspended. Reason: ${restaurant.suspensionReason}` 
       });
-    }
-
-    // Validate password
-    const isMatch = await bcrypt.compare(password, restaurant.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     restaurant.lastLogin = new Date();
