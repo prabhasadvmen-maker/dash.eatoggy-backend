@@ -296,3 +296,40 @@ export const toggleSubcategoryStatus = async (req, res) => {
     res.status(500).json({ message: 'Failed to toggle subcategory status' });
   }
 };
+
+export const deleteCategory = async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    const subcategories = await Subcategory.find({ categoryId: req.params.id });
+    if (subcategories.length > 0) {
+      return res.status(400).json({ message: 'Cannot delete category because it has subcategories. Please delete them first.' });
+    }
+
+    await Category.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Category deleted successfully' });
+  } catch (error) {
+    if (error.kind === 'ObjectId') return res.status(404).json({ message: 'Category not found' });
+    console.error('Error deleting category:', error);
+    res.status(500).json({ message: 'Failed to delete category' });
+  }
+};
+
+export const deleteSubcategory = async (req, res) => {
+  try {
+    const subcategory = await Subcategory.findById(req.params.id);
+    if (!subcategory) {
+      return res.status(404).json({ message: 'Subcategory not found' });
+    }
+
+    await Subcategory.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Subcategory deleted successfully' });
+  } catch (error) {
+    if (error.kind === 'ObjectId') return res.status(404).json({ message: 'Subcategory not found' });
+    console.error('Error deleting subcategory:', error);
+    res.status(500).json({ message: 'Failed to delete subcategory' });
+  }
+};

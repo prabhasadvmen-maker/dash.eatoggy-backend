@@ -10,7 +10,9 @@ import {
   getSubcategories,
   getSubcategoryById,
   updateSubcategory,
-  toggleSubcategoryStatus
+  toggleSubcategoryStatus,
+  deleteCategory,
+  deleteSubcategory
 } from '../../controllers/super-admin/superAdminCategoryController.js';
 import {
   getPendingMenuItems,
@@ -32,6 +34,7 @@ router.get('/categories', getCategories);
 router.get('/categories/:id', getCategoryById);
 router.put('/categories/:id', updateCategory);
 router.patch('/categories/:id/status', toggleCategoryStatus);
+router.delete('/categories/:id', deleteCategory);
 
 // ==========================================
 // SUBCATEGORY ROUTES
@@ -41,6 +44,7 @@ router.get('/subcategories', getSubcategories);
 router.get('/subcategories/:id', getSubcategoryById);
 router.put('/subcategories/:id', updateSubcategory);
 router.patch('/subcategories/:id/status', toggleSubcategoryStatus);
+router.delete('/subcategories/:id', deleteSubcategory);
 
 // ==========================================
 // MENU VERIFICATION ROUTES

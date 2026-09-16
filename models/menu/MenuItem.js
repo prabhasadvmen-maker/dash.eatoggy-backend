@@ -92,6 +92,8 @@ const menuItemSchema = new mongoose.Schema(
 menuItemSchema.index({ restaurantId: 1, status: 1 });
 // Compound Index for fast lookup by category and subcategory (useful later for customer discovery)
 menuItemSchema.index({ categoryId: 1, subcategoryId: 1 });
+// Compound Index for Gourmet Creations
+menuItemSchema.index({ status: 1, availability: 1, createdAt: -1 });
 
 const MenuItem = mongoose.model('MenuItem', menuItemSchema);
 

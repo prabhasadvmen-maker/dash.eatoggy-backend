@@ -67,4 +67,7 @@ const RestaurantSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+// Compound Index for fast lookup by status and onboardingStatus
+RestaurantSchema.index({ status: 1, onboardingStatus: 1 });
+
 export default mongoose.model('Restaurant', RestaurantSchema);
