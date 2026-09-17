@@ -13,7 +13,7 @@ export const getRestaurants = async (req, res) => {
       status: 'APPROVED',
       onboardingStatus: 'APPROVED'
     })
-    .select('_id restaurantName restaurantType cuisine city fullAddress documents.restaurantImage operatingHours')
+    .select('_id restaurantName restaurantType cuisine city fullAddress documents.restaurantImage operatingHours rating')
     .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -41,7 +41,7 @@ export const getRestaurantById = async (req, res) => {
       status: 'APPROVED',
       onboardingStatus: 'APPROVED'
     })
-    .select('_id restaurantName restaurantType cuisine city fullAddress documents.restaurantImage operatingHours');
+    .select('_id restaurantName restaurantType cuisine city fullAddress documents.restaurantImage operatingHours rating');
 
     if (!restaurant) {
       return res.status(404).json({
@@ -303,7 +303,7 @@ export const getGourmetCreations = async (req, res) => {
     .populate({
       path: 'restaurantId',
       match: { status: 'APPROVED', onboardingStatus: 'APPROVED' },
-      select: '_id restaurantName'
+      select: '_id restaurantName cuisine city rating documents.restaurantImage'
     })
     .select('_id name description price image foodType preparationTime restaurantId rating')
     .sort({ createdAt: -1 })

@@ -10,6 +10,9 @@ import restaurantOnboardingRoutes from './routes/restaurants/restaurantOnboardin
 import restaurantMenuRoutes from './routes/restaurants/restaurantMenu.js';
 import customerAuthRoutes from './routes/customers/customerAuth.js';
 import customerDiscoveryRoutes from './routes/customers/customerDiscovery.js';
+import customerCartRoutes from './routes/cart/cartRoutes.js';
+import addressRoutes from './routes/customers/addressRoutes.js';
+import checkoutRoutes from './routes/cart/checkoutRoutes.js';
 import deliveryAuthRoutes from './routes/delivery/deliveryAuth.js';
 import deliveryOnboardingRoutes from './routes/delivery/deliveryOnboarding.js';
 import superAdminDeliveryRoutes from './routes/super-admin/superAdminDelivery.js';
@@ -36,6 +39,9 @@ app.use('/api/restaurant-onboarding', restaurantOnboardingRoutes);
 app.use('/api/restaurants/menu', restaurantMenuRoutes);
 app.use('/api/customer-auth', customerAuthRoutes);
 app.use('/api/customers/discovery', customerDiscoveryRoutes);
+app.use('/api/customers/addresses', addressRoutes);
+app.use('/api/cart', customerCartRoutes);
+app.use('/api/checkout', checkoutRoutes);
 
 // Delivery Partners Routes
 app.use('/api/delivery-auth', deliveryAuthRoutes);

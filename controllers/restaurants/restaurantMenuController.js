@@ -163,6 +163,7 @@ export const updateMenuItem = async (req, res) => {
       // If user submits while editing
       if (isDraft === 'false' || isDraft === false) {
         item.status = 'PENDING_REVIEW';
+        item.rejectionReason = undefined;
         item.submittedAt = new Date();
       } else {
         item.status = 'DRAFT'; // Reset rejected to draft if just saving
@@ -171,6 +172,7 @@ export const updateMenuItem = async (req, res) => {
       // Any update to APPROVED (other than just availability which we might separate) reverts to PENDING_REVIEW
       // Wait, we have a separate endpoint for availability. So if they use the edit endpoint, it's a content change.
       item.status = 'PENDING_REVIEW';
+      item.rejectionReason = undefined;
       item.submittedAt = new Date();
       item.reviewedAt = undefined;
       item.reviewedBy = undefined;
@@ -201,6 +203,7 @@ export const submitForVerification = async (req, res) => {
     }
 
     item.status = 'PENDING_REVIEW';
+    item.rejectionReason = undefined;
     item.submittedAt = new Date();
     item.updatedBy = req.restaurant.id;
     item.updatedByType = 'Restaurant';

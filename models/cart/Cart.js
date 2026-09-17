@@ -1,0 +1,70 @@
+import mongoose from 'mongoose';
+
+const cartItemSchema = new mongoose.Schema(
+  {
+    menuItemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MenuItem',
+      required: true
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    image: {
+      type: String,
+      default: ''
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1
+    },
+    itemSubtotal: {
+      type: Number,
+      required: true,
+      min: 0
+    }
+  },
+  { _id: true }
+);
+
+const cartSchema = new mongoose.Schema(
+  {
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Customer',
+      required: true,
+      unique: true,
+      index: true
+    },
+    restaurantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Restaurant',
+      default: null
+    },
+    items: {
+      type: [cartItemSchema],
+      default: []
+    },
+    subtotal: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0
+    }
+  },
+  { timestamps: true }
+);
+
+// Unique index on customerId for fast lookup & ensuring 1 active cart per customer
+cartSchema.index({ customerId: 1 }, { unique: true });
+
+export default mongoose.model('Cart', cartSchema);
