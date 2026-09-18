@@ -47,8 +47,13 @@ export const createMenuItem = async (req, res) => {
 
     const status = isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PENDING_REVIEW';
     
+    const restaurantId = req.restaurant?.id || req.restaurant?._id || req.user?.id || req.user?._id;
+    if (!restaurantId) {
+      return res.status(401).json({ message: 'Unauthorized restaurant access' });
+    }
+
     const menuItem = new MenuItem({
-      restaurantId: req.restaurant.id,
+      restaurantId,
       categoryId,
       subcategoryId,
       name,
@@ -60,8 +65,8 @@ export const createMenuItem = async (req, res) => {
       image: imageUrl,
       status,
       submittedAt: status === 'PENDING_REVIEW' ? new Date() : undefined,
-      createdBy: req.restaurant.id,
-      updatedBy: req.restaurant.id,
+      createdBy: restaurantId,
+      updatedBy: restaurantId,
       updatedByType: 'Restaurant'
     });
 

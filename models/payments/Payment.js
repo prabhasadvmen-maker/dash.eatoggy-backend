@@ -10,6 +10,14 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Restaurant'
     },
+    customer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Customer'
+    },
+    checkoutSession: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CheckoutSession'
+    },
     purpose: {
       type: String,
       default: 'DELIVERY_PARTNER_ONBOARDING',

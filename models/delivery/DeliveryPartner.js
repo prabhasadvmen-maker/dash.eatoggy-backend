@@ -80,6 +80,19 @@ const deliveryPartnerSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    isOnline: {
+      type: Boolean,
+      default: true
+    },
+    isAvailable: {
+      type: Boolean,
+      default: true
+    },
+    currentLocation: {
+      latitude: { type: Number, default: 28.6139 },
+      longitude: { type: Number, default: 77.2090 },
+      updatedAt: { type: Date, default: Date.now }
+    },
     isMobileVerified: {
       type: Boolean,
       default: false
