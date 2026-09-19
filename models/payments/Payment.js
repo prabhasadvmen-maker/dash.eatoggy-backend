@@ -18,10 +18,14 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'CheckoutSession'
     },
+    subscription: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subscription'
+    },
     purpose: {
       type: String,
       default: 'DELIVERY_PARTNER_ONBOARDING',
-      enum: ['DELIVERY_PARTNER_ONBOARDING', 'RESTAURANT_PARTNER_ONBOARDING', 'ORDER_PAYMENT']
+      enum: ['DELIVERY_PARTNER_ONBOARDING', 'RESTAURANT_PARTNER_ONBOARDING', 'ORDER_PAYMENT', 'SUBSCRIPTION_PAYMENT']
     },
     amount: {
       type: Number,

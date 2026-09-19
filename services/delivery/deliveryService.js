@@ -3,6 +3,7 @@ import DeliveryPartner from '../../models/delivery/DeliveryPartner.js';
 import Order from '../../models/orders/Order.js';
 import Restaurant from '../../models/restaurants/Restaurant.js';
 import Customer from '../../models/customers/Customer.js';
+import { emitToOrderRoom } from '../../realtime/socketServer.js';
 
 /**
  * Helper to generate 4-digit Delivery OTP
@@ -135,6 +136,14 @@ export const acceptDeliveryJob = async (deliveryId, partnerId) => {
 
   await DeliveryPartner.findByIdAndUpdate(partnerId, { isAvailable: false });
 
+  // Emit Real-Time Status Update Event
+  emitToOrderRoom(delivery.orderId, 'delivery:status:update', {
+    orderId: delivery.orderId,
+    deliveryId: delivery._id,
+    deliveryStatus: 'ACCEPTED',
+    updatedAt: new Date()
+  });
+
   return delivery;
 };
 
@@ -147,16 +156,23 @@ export const updateDeliveryStatus = async (deliveryId, partnerId, targetStatus) 
     throw { statusCode: 404, message: 'Active delivery job not found for this partner' };
   }
 
+  if (delivery.deliveryStatus === 'DELIVERED') {
+    throw { statusCode: 400, message: 'Cannot modify status of an already delivered order' };
+  }
+
   const validStatuses = ['PICKED_UP', 'OUT_FOR_DELIVERY'];
   if (!validStatuses.includes(targetStatus)) {
     throw { statusCode: 400, message: `Invalid target delivery status: ${targetStatus}` };
   }
 
   delivery.deliveryStatus = targetStatus;
+  let updatedOrderStatus = undefined;
+
   if (targetStatus === 'PICKED_UP') {
     delivery.pickedUpAt = new Date();
   } else if (targetStatus === 'OUT_FOR_DELIVERY') {
     delivery.outForDeliveryAt = new Date();
+    updatedOrderStatus = 'OUT_FOR_DELIVERY';
 
     // Sync Order Status to OUT_FOR_DELIVERY
     await Order.findByIdAndUpdate(delivery.orderId, {
@@ -173,6 +189,16 @@ export const updateDeliveryStatus = async (deliveryId, partnerId, targetStatus) 
   }
 
   await delivery.save();
+
+  // Emit Real-Time Status Update Event
+  emitToOrderRoom(delivery.orderId, 'delivery:status:update', {
+    orderId: delivery.orderId,
+    deliveryId: delivery._id,
+    deliveryStatus: targetStatus,
+    orderStatus: updatedOrderStatus,
+    updatedAt: new Date()
+  });
+
   return delivery;
 };
 
@@ -180,8 +206,17 @@ export const updateDeliveryStatus = async (deliveryId, partnerId, targetStatus) 
  * Update Live GPS Location
  */
 export const updateDeliveryLocation = async (deliveryId, partnerId, latitude, longitude) => {
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+  if (
+    typeof latitude !== 'number' ||
+    typeof longitude !== 'number' ||
+    isNaN(latitude) ||
+    isNaN(longitude)
+  ) {
     throw { statusCode: 400, message: 'Valid numeric latitude and longitude are required' };
+  }
+
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    throw { statusCode: 400, message: 'Latitude must be between -90 and 90, and longitude between -180 and 180' };
   }
 
   const delivery = await Delivery.findOne({ _id: deliveryId, deliveryPartnerId: partnerId });
@@ -189,15 +224,29 @@ export const updateDeliveryLocation = async (deliveryId, partnerId, latitude, lo
     throw { statusCode: 404, message: 'Active delivery job not found for this partner' };
   }
 
+  if (delivery.deliveryStatus === 'DELIVERED') {
+    throw { statusCode: 400, message: 'Cannot update location for a completed delivery' };
+  }
+
+  const now = new Date();
   delivery.currentLocation = {
     latitude,
     longitude,
-    updatedAt: new Date()
+    updatedAt: now
   };
   await delivery.save();
 
   await DeliveryPartner.findByIdAndUpdate(partnerId, {
-    currentLocation: { latitude, longitude, updatedAt: new Date() }
+    currentLocation: { latitude, longitude, updatedAt: now }
+  });
+
+  // Emit Real-Time Location Update Event
+  emitToOrderRoom(delivery.orderId, 'delivery:location:update', {
+    orderId: delivery.orderId,
+    deliveryId: delivery._id,
+    latitude,
+    longitude,
+    updatedAt: now
   });
 
   return delivery;
@@ -216,13 +265,18 @@ export const verifyOtpAndCompleteDelivery = async (deliveryId, partnerId, otp) =
     throw { statusCode: 404, message: 'Active delivery job not found for this partner' };
   }
 
+  if (delivery.deliveryStatus === 'DELIVERED') {
+    throw { statusCode: 400, message: 'Delivery has already been completed' };
+  }
+
   if (delivery.deliveryOtp !== String(otp).trim()) {
     throw { statusCode: 400, message: 'Invalid Delivery OTP. Verification failed.' };
   }
 
+  const now = new Date();
   delivery.deliveryStatus = 'DELIVERED';
   delivery.assignmentStatus = 'COMPLETED';
-  delivery.deliveredAt = new Date();
+  delivery.deliveredAt = now;
   await delivery.save();
 
   // Update linked Order status to DELIVERED
@@ -231,7 +285,7 @@ export const verifyOtpAndCompleteDelivery = async (deliveryId, partnerId, otp) =
     $push: {
       statusHistory: {
         status: 'DELIVERED',
-        timestamp: new Date(),
+        timestamp: now,
         updatedBy: 'DELIVERY_PARTNER',
         note: 'Order successfully delivered to customer'
       }
@@ -240,6 +294,15 @@ export const verifyOtpAndCompleteDelivery = async (deliveryId, partnerId, otp) =
 
   // Release Delivery Partner availability
   await DeliveryPartner.findByIdAndUpdate(partnerId, { isAvailable: true });
+
+  // Emit Real-Time Delivery Completed Event
+  emitToOrderRoom(delivery.orderId, 'delivery:status:update', {
+    orderId: delivery.orderId,
+    deliveryId: delivery._id,
+    deliveryStatus: 'DELIVERED',
+    orderStatus: 'DELIVERED',
+    updatedAt: now
+  });
 
   return delivery;
 };
@@ -269,3 +332,4 @@ export const getCustomerOrderTracking = async (customerId, orderId) => {
     customerSnapshot: delivery ? delivery.customerSnapshot : null
   };
 };
+

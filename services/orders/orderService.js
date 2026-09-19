@@ -5,6 +5,7 @@ import Address from '../../models/customers/Address.js';
 import Cart from '../../models/cart/Cart.js';
 import MenuItem from '../../models/menu/MenuItem.js';
 import { createDeliveryForOrder } from '../delivery/deliveryService.js';
+import { emitToOrderRoom, emitToRestaurantRoom } from '../../realtime/socketServer.js';
 
 /**
  * Idempotently Create Order from Verified Payment
@@ -130,10 +131,24 @@ export const createOrderFromPayment = async (paymentId) => {
 
   await Cart.findOneAndDelete({ customerId: payment.customer });
 
-  // 10. Return Populated Order
-  return await Order.findById(order._id)
+  const populatedOrder = await Order.findById(order._id)
     .populate('restaurantId', 'restaurantName city rating documents.restaurantImage cuisine')
     .populate('customerId', 'fullName mobile email');
+
+  // Emit Real-time Event to Restaurant Room
+  try {
+    emitToRestaurantRoom(session.restaurantId.toString(), 'order:kitchen:new', {
+      orderId: populatedOrder._id,
+      orderNumber: populatedOrder.orderNumber,
+      orderStatus: 'PLACED',
+      createdAt: populatedOrder.createdAt
+    });
+  } catch (emitErr) {
+    console.error('Error emitting socket order:kitchen:new:', emitErr);
+  }
+
+  // 10. Return Populated Order
+  return populatedOrder;
 };
 
 /**
@@ -185,6 +200,32 @@ export const getRestaurantOrders = async (restaurantId, statusFilter = null) => 
 };
 
 /**
+ * Get Restaurant Kitchen Queue Orders (ACCEPTED, PREPARING, READY)
+ */
+export const getKitchenOrders = async (restaurantId, statusFilter = null) => {
+  const query = { restaurantId };
+  if (statusFilter && statusFilter !== 'ALL') {
+    query.orderStatus = statusFilter;
+  } else {
+    query.orderStatus = { $in: ['PLACED', 'ACCEPTED', 'PREPARING', 'READY'] };
+  }
+
+  const orders = await Order.find(query)
+    .populate('customerId', 'fullName mobile email')
+    .populate('restaurantId', 'restaurantName');
+
+  // Priority mapping for sorting: URGENT > HIGH > NORMAL
+  const priorityWeight = { URGENT: 3, HIGH: 2, NORMAL: 1 };
+
+  return orders.sort((a, b) => {
+    const pA = priorityWeight[a.priority] || 1;
+    const pB = priorityWeight[b.priority] || 1;
+    if (pB !== pA) return pB - pA;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+};
+
+/**
  * Get Single Restaurant Order by ID (with Ownership Isolation)
  */
 export const getRestaurantOrderById = async (restaurantId, orderId) => {
@@ -208,9 +249,9 @@ export const getRestaurantOrderById = async (restaurantId, orderId) => {
 };
 
 /**
- * Update Restaurant Order Status with State Machine Validation
+ * Update Restaurant Order Status with State Machine Validation & Server Timestamps
  */
-export const updateRestaurantOrderStatus = async (restaurantId, orderId, newStatus, reason = '') => {
+export const updateRestaurantOrderStatus = async (restaurantId, orderId, newStatus, reason = '', notes = '') => {
   const order = await Order.findById(orderId);
   if (!order) {
     const error = new Error('Order not found');
@@ -251,21 +292,76 @@ export const updateRestaurantOrderStatus = async (restaurantId, orderId, newStat
     throw error;
   }
 
+  const now = new Date();
   order.orderStatus = newStatus;
   if (reason) {
     order.rejectionReason = reason;
   }
 
+  if (notes) {
+    order.preparationNotes = notes;
+  }
+
+  // Capture Server-side Operational Timestamps
+  if (newStatus === 'ACCEPTED' && !order.acceptedAt) {
+    order.acceptedAt = now;
+  }
+  if (newStatus === 'PREPARING') {
+    if (!order.preparingAt) order.preparingAt = now;
+    if (!order.preparationStartedAt) order.preparationStartedAt = now;
+  }
+  if (newStatus === 'READY') {
+    if (!order.readyAt) order.readyAt = now;
+    if (!order.preparationCompletedAt) order.preparationCompletedAt = now;
+  }
+
   order.statusHistory.push({
     status: newStatus,
-    timestamp: new Date(),
+    timestamp: now,
     updatedBy: 'RESTAURANT',
-    note: reason || `Order status updated to ${newStatus}`
+    note: reason || notes || `Order status updated to ${newStatus}`
   });
 
   await order.save();
 
-  return await Order.findById(order._id)
+  // Delivery Eligibility Handoff: Ensure Delivery record exists when READY
+  if (newStatus === 'READY') {
+    try {
+      await createDeliveryForOrder(order._id);
+    } catch (deliveryErr) {
+      // Ignore if delivery already exists
+    }
+  }
+
+  const updatedOrder = await Order.findById(order._id)
     .populate('customerId', 'fullName mobile email')
     .populate('restaurantId', 'restaurantName');
+
+  // Real-time Socket.IO Notifications
+  try {
+    // Notify Customer Order Room
+    emitToOrderRoom(order._id.toString(), 'delivery:status:update', {
+      orderId: order._id,
+      orderStatus: newStatus,
+      timestamp: now.toISOString()
+    });
+
+    emitToOrderRoom(order._id.toString(), 'order:status:update', {
+      orderId: order._id,
+      orderStatus: newStatus,
+      timestamp: now.toISOString()
+    });
+
+    // Notify Restaurant Room
+    emitToRestaurantRoom(restaurantId.toString(), 'order:kitchen:updated', {
+      orderId: order._id,
+      orderNumber: updatedOrder.orderNumber,
+      orderStatus: newStatus,
+      updatedAt: now.toISOString()
+    });
+  } catch (socketErr) {
+    console.error('Error emitting socket updates for kitchen order:', socketErr);
+  }
+
+  return updatedOrder;
 };

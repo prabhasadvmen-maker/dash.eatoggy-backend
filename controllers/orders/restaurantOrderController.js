@@ -74,17 +74,79 @@ export const updateRestaurantOrderStatus = async (req, res, next) => {
     }
 
     const { id } = req.params;
-    const { status, reason } = req.body;
+    const { status, reason, notes } = req.body;
 
     if (!status) {
       return errorResponse(res, { statusCode: 400, message: 'Target status is required' });
     }
 
-    const updatedOrder = await orderService.updateRestaurantOrderStatus(restaurantId, id, status, reason || '');
+    const updatedOrder = await orderService.updateRestaurantOrderStatus(restaurantId, id, status, reason || '', notes || '');
 
     return successResponse(res, {
       statusCode: 200,
       message: `Order status updated to ${status} successfully`,
+      data: updatedOrder
+    });
+  } catch (err) {
+    if (err.statusCode) {
+      return errorResponse(res, { statusCode: err.statusCode, message: err.message });
+    }
+    next(err);
+  }
+};
+
+/**
+ * @desc    Get Restaurant Kitchen Queue Orders
+ * @route   GET /api/restaurants/kitchen/orders
+ * @access  Private (Restaurant Partner)
+ */
+export const getKitchenOrders = async (req, res, next) => {
+  try {
+    const restaurantId = getRestaurantId(req);
+    if (!restaurantId) {
+      return errorResponse(res, { statusCode: 401, message: 'Unauthorized restaurant access' });
+    }
+
+    const { status } = req.query;
+    const orders = await orderService.getKitchenOrders(restaurantId, status || null);
+
+    return successResponse(res, {
+      statusCode: 200,
+      message: 'Kitchen queue retrieved successfully',
+      data: orders
+    });
+  } catch (err) {
+    if (err.statusCode) {
+      return errorResponse(res, { statusCode: err.statusCode, message: err.message });
+    }
+    next(err);
+  }
+};
+
+/**
+ * @desc    Update Kitchen Order Status (KDS Endpoint)
+ * @route   PATCH /api/restaurants/kitchen/orders/:id/status
+ * @access  Private (Restaurant Partner)
+ */
+export const updateKitchenOrderStatus = async (req, res, next) => {
+  try {
+    const restaurantId = getRestaurantId(req);
+    if (!restaurantId) {
+      return errorResponse(res, { statusCode: 401, message: 'Unauthorized restaurant access' });
+    }
+
+    const { id } = req.params;
+    const { status, reason, notes } = req.body;
+
+    if (!status) {
+      return errorResponse(res, { statusCode: 400, message: 'Target status is required' });
+    }
+
+    const updatedOrder = await orderService.updateRestaurantOrderStatus(restaurantId, id, status, reason || '', notes || '');
+
+    return successResponse(res, {
+      statusCode: 200,
+      message: `Kitchen order status updated to ${status} successfully`,
       data: updatedOrder
     });
   } catch (err) {

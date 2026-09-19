@@ -210,6 +210,57 @@ const orderSchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
       default: ''
+    },
+    acceptedAt: {
+      type: Date,
+      default: null
+    },
+    preparingAt: {
+      type: Date,
+      default: null
+    },
+    readyAt: {
+      type: Date,
+      default: null
+    },
+    preparationStartedAt: {
+      type: Date,
+      default: null
+    },
+    preparationCompletedAt: {
+      type: Date,
+      default: null
+    },
+    preparationNotes: {
+      type: String,
+      default: ''
+    },
+    kitchenNotes: {
+      type: String,
+      default: ''
+    },
+    priority: {
+      type: String,
+      enum: ['NORMAL', 'HIGH', 'URGENT'],
+      default: 'NORMAL',
+      index: true
+    },
+    subscriptionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subscription',
+      default: null,
+      index: true
+    },
+    subscriptionOccurrenceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SubscriptionOccurrence',
+      default: null,
+      index: true
+    },
+    isSubscriptionOrder: {
+      type: Boolean,
+      default: false,
+      index: true
     }
   },
   { timestamps: true }
